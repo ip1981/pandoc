@@ -1549,6 +1549,7 @@ blockCommands = M.fromList
                          <|> (grouped block >>= addMeta "title")))
    , ("subtitle", mempty <$ (skipopts *> tok >>= addMeta "subtitle"))
    , ("author", mempty <$ (skipopts *> authors))
+   , ("tableofcontents", mempty <$ (addMeta "tableOfContents" True))
    -- -- in letter class, temp. store address & sig as title, author
    , ("address", mempty <$ (skipopts *> tok >>= addMeta "address"))
    , ("signature", mempty <$ (skipopts *> authors))

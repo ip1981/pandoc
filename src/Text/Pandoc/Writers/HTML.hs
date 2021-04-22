@@ -28,6 +28,7 @@ module Text.Pandoc.Writers.HTML (
   writeRevealJs,
   tagWithAttributes
   ) where
+import Control.Monad.Identity (runIdentity)
 import Control.Monad.State.Strict
 import Data.Char (ord)
 import Data.List (intercalate, intersperse, partition, delete, (\\))
@@ -51,7 +52,7 @@ import Text.Pandoc.ImageSize
 import Text.Pandoc.Options
 import Text.Pandoc.Shared
 import Text.Pandoc.Slides
-import Text.Pandoc.Templates (renderTemplate)
+import Text.Pandoc.Templates (Template, compileTemplate, renderTemplate)
 import Text.Pandoc.Walk
 import Text.Pandoc.Writers.Math
 import Text.Pandoc.Writers.Shared
@@ -203,10 +204,13 @@ writeHtmlString' :: PandocMonad m
                  => WriterState -> WriterOptions -> Pandoc -> m Text
 writeHtmlString' st opts d = do
   (body, context) <- evalStateT (pandocToHtml opts d) st
+  let defaultTemplate = fmap (const tocTemplate) (getField "table-of-contents" context :: Maybe Text)
+  let template = msum [ writerTemplate opts
+                      , defaultTemplate ]
   (if writerPreferAscii opts
       then toEntities
       else id) <$>
-    case writerTemplate opts of
+    case template of
        Nothing -> return $ renderHtml' body
        Just tpl -> do
          -- warn if empty lang
@@ -239,6 +243,13 @@ writeHtml' st opts d =
             (body, _) <- evalStateT (pandocToHtml opts d) st
             return body
 
+wantTOC :: Meta -> Maybe Bool
+wantTOC = fmap (== MetaBool True) . lookupMeta "tableOfContents"
+
+tocTemplate :: Template Text
+tocTemplate = either error id . runIdentity . compileTemplate "" $
+   "<div class=\"toc\"><h1></h1>$table-of-contents$</div>$body$"
+
 -- result is (title, authors, date, toc, body, new variables)
 pandocToHtml :: PandocMonad m
              => WriterOptions
@@ -260,7 +271,8 @@ pandocToHtml opts (Pandoc meta blocks) = do
               if slideVariant == NoSlides
                  then blocks
                  else prepSlides slideLevel blocks
-  toc <- if writerTableOfContents opts && slideVariant /= S5Slides
+  let withTOC = fromMaybe (writerTableOfContents opts) (wantTOC meta)
+  toc <- if withTOC && slideVariant /= S5Slides
             then fmap renderHtml' <$> tableOfContents opts sects
             else return Nothing
   blocks' <- blockListToHtml opts sects
