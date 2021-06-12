@@ -1651,6 +1651,8 @@ environments = M.fromList
    , ("figure", env "figure" $ skipopts *> figure)
    , ("subfigure", env "subfigure" $ skipopts *> tok *> figure)
    , ("center", divWith ("", ["center"], []) <$> env "center" blocks)
+   , ("flushright", divWith ("", ["flushright"], []) <$> env "flushright" blocks)
+   , ("flushleft", divWith ("", ["flushleft"], []) <$> env "flushleft" blocks)
    , ("longtable",  env "longtable" $
           resetCaption *> simpTable "longtable" False >>= addTableCaption)
    , ("table",  env "table" $
