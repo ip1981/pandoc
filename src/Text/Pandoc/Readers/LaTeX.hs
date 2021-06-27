@@ -1653,6 +1653,7 @@ environments = M.fromList
    , ("center", divWith ("", ["center"], []) <$> env "center" blocks)
    , ("flushright", divWith ("", ["flushright"], []) <$> env "flushright" blocks)
    , ("flushleft", divWith ("", ["flushleft"], []) <$> env "flushleft" blocks)
+   , ("landscape", env "landscape" blocks)
    , ("longtable",  env "longtable" $
           resetCaption *> simpTable "longtable" False >>= addTableCaption)
    , ("table",  env "table" $
