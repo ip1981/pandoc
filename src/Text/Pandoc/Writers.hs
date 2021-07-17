@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {- |
    Module      : Text.Pandoc
-   Copyright   : Copyright (C) 2006-2020 John MacFarlane
+   Copyright   : Copyright (C) 2006-2021 John MacFarlane
    License     : GNU GPL, version 2 or above
 
    Maintainer  : John MacFarlane <jgm@berkeley.edu>
@@ -21,6 +21,8 @@ module Text.Pandoc.Writers
     , writeAsciiDoc
     , writeAsciiDoctor
     , writeBeamer
+    , writeBibTeX
+    , writeBibLaTeX
     , writeCommonMark
     , writeConTeXt
     , writeCustom
@@ -79,12 +81,14 @@ import Data.Aeson
 import qualified Data.ByteString.Lazy as BL
 import Data.Text (Text)
 import qualified Data.Text as T
+import Text.Pandoc.Shared (tshow)
 import Text.Pandoc.Class
 import Text.Pandoc.Definition
 import Text.Pandoc.Options
 import qualified Text.Pandoc.UTF8 as UTF8
 import Text.Pandoc.Error
 import Text.Pandoc.Writers.AsciiDoc
+import Text.Pandoc.Writers.BibTeX
 import Text.Pandoc.Writers.CommonMark
 import Text.Pandoc.Writers.ConTeXt
 import Text.Pandoc.Writers.CslJson
@@ -119,7 +123,6 @@ import Text.Pandoc.Writers.Texinfo
 import Text.Pandoc.Writers.Textile
 import Text.Pandoc.Writers.XWiki
 import Text.Pandoc.Writers.ZimWiki
-import Text.Parsec.Error
 
 data Writer m = TextWriter (WriterOptions -> Pandoc -> m Text)
               | ByteStringWriter (WriterOptions -> Pandoc -> m BL.ByteString)
@@ -185,14 +188,16 @@ writers = [
   ,("tei"          , TextWriter writeTEI)
   ,("muse"         , TextWriter writeMuse)
   ,("csljson"      , TextWriter writeCslJson)
+  ,("bibtex"       , TextWriter writeBibTeX)
+  ,("biblatex"     , TextWriter writeBibLaTeX)
   ]
 
 -- | Retrieve writer, extensions based on formatSpec (format+extensions).
 getWriter :: PandocMonad m => Text -> m (Writer m, Extensions)
 getWriter s =
   case parseFormatSpec s of
-        Left e  -> throwError $ PandocAppError
-                    $ T.intercalate "\n" [T.pack m | Message m <- errorMessages e]
+        Left e  -> throwError $ PandocAppError $
+                    "Error parsing writer format " <> tshow s <> ": " <> tshow e
         Right (writerName, extsToEnable, extsToDisable) ->
            case lookup writerName writers of
                    Nothing  -> throwError $

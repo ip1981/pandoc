@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {- |
    Module      : Text.Pandoc.Readers.Org.Inlines
-   Copyright   : Copyright (C) 2014-2020 Albert Krewinkel
+   Copyright   : Copyright (C) 2014-2021 Albert Krewinkel
    License     : GNU GPL, version 2 or above
 
    Maintainer  : Albert Krewinkel <tarleb+pandoc@moltkeplatz.de>
@@ -29,6 +29,7 @@ import Text.Pandoc.Definition
 import Text.Pandoc.Options
 import Text.Pandoc.Readers.LaTeX (inlineCommand, rawLaTeXInline)
 import Text.TeXMath (DisplayType (..), readTeX, writePandoc)
+import Text.Pandoc.Sources (ToSources(..))
 import qualified Text.TeXMath.Readers.MathML.EntityMap as MathMLEntityMap
 
 import Control.Monad (guard, mplus, mzero, unless, void, when)
@@ -262,7 +263,7 @@ berkeleyCitationList = try $ do
  where
    citationListPart :: PandocMonad m => OrgParser m (F Inlines)
    citationListPart = fmap (trimInlinesF . mconcat) . try . many1 $ do
-     notFollowedBy' citeKey
+     notFollowedBy' $ citeKey False
      notFollowedBy (oneOf ";]")
      inline
 
@@ -277,7 +278,7 @@ berkeleyBareTag' = try $ void (string "cite")
 
 berkeleyTextualCite :: PandocMonad m => OrgParser m (F [Citation])
 berkeleyTextualCite = try $ do
-  (suppressAuthor, key) <- citeKey
+  (suppressAuthor, key) <- citeKey False
   returnF . return $ Citation
     { citationId      = key
     , citationPrefix  = mempty
@@ -322,7 +323,7 @@ linkLikeOrgRefCite = try $ do
 -- from the `org-ref-cite-re` variable in `org-ref.el`.
 orgRefCiteKey :: PandocMonad m => OrgParser m Text
 orgRefCiteKey =
-  let citeKeySpecialChars = "-_:\\./," :: String
+  let citeKeySpecialChars = "-_:\\./" :: String
       isCiteKeySpecialChar c = c `elem` citeKeySpecialChars
       isCiteKeyChar c = isAlphaNum c || isCiteKeySpecialChar c
       endOfCitation = try $ do
@@ -350,7 +351,7 @@ citeList = sequence <$> sepEndBy1 citation (try $ char ';' *> skipSpaces)
 citation :: PandocMonad m => OrgParser m (F Citation)
 citation = try $ do
   pref <- prefix
-  (suppress_author, key) <- citeKey
+  (suppress_author, key) <- citeKey False
   suff <- suffix
   return $ do
     x <- pref
@@ -367,7 +368,7 @@ citation = try $ do
       }
  where
    prefix = trimInlinesF . mconcat <$>
-            manyTill inline (char ']' <|> (']' <$ lookAhead citeKey))
+            manyTill inline (char ']' <|> (']' <$ lookAhead (citeKey False)))
    suffix = try $ do
      hasSpace <- option False (notFollowedBy nonspaceChar >> return True)
      skipSpaces
@@ -477,17 +478,17 @@ linkToInlinesF linkStr =
 
 internalLink :: Text -> Inlines -> F Inlines
 internalLink link title = do
-  anchorB <- (link `elem`) <$> asksF orgStateAnchorIds
-  if anchorB
+  ids <- asksF orgStateAnchorIds
+  if link `elem` ids
     then return $ B.link ("#" <> link) "" title
-    else return $ B.emph title
+    else let attr' = ("", ["spurious-link"] , [("target", link)])
+         in return $ B.spanWith attr' (B.emph title)
 
 -- | Parse an anchor like @<<anchor-id>>@ and return an empty span with
 -- @anchor-id@ set as id.  Legal anchors in org-mode are defined through
 -- @org-target-regexp@, which is fairly liberal.  Since no link is created if
 -- @anchor-id@ contains spaces, we are more restrictive in what is accepted as
 -- an anchor.
-
 anchor :: PandocMonad m => OrgParser m (F Inlines)
 anchor =  try $ do
   anchorId <- parseAnchor
@@ -501,7 +502,6 @@ anchor =  try $ do
 
 -- | Replace every char but [a-zA-Z0-9_.-:] with a hyphen '-'.  This mirrors
 -- the org function @org-export-solidify-link-text@.
-
 solidify :: Text -> Text
 solidify = T.map replaceSpecialChar
  where replaceSpecialChar c
@@ -573,7 +573,7 @@ underline :: PandocMonad m => OrgParser m (F Inlines)
 underline = fmap B.underline    <$> emphasisBetween '_'
 
 verbatim  :: PandocMonad m => OrgParser m (F Inlines)
-verbatim  = return . B.code     <$> verbatimBetween '='
+verbatim  = return . B.codeWith ("", ["verbatim"], []) <$> verbatimBetween '='
 
 code      :: PandocMonad m => OrgParser m (F Inlines)
 code      = return . B.code     <$> verbatimBetween '~'
@@ -803,7 +803,7 @@ inlineLaTeX = try $ do
    parseAsInlineLaTeX :: PandocMonad m
                       => Text -> TeXExport -> OrgParser m (Maybe Inlines)
    parseAsInlineLaTeX cs = \case
-     TeXExport -> maybeRight <$> runParserT inlineCommand state "" cs
+     TeXExport -> maybeRight <$> runParserT inlineCommand state "" (toSources cs)
      TeXIgnore -> return (Just mempty)
      TeXVerbatim -> return (Just $ B.str cs)
 

@@ -1,7 +1,5 @@
-{-# LANGUAGE NoImplicitPrelude #-}
 module Tests.Writers.Docx (tests) where
 
-import Prelude
 import Text.Pandoc
 import Test.Tasty
 import Tests.Writers.OOXML
@@ -114,6 +112,11 @@ tests = [ testGroup "inlines"
             "docx/tables.native"
             "docx/golden/tables.docx"
           , docxTest
+            "tables without explicit column widths"
+            def
+            "docx/tables-default-widths.native"
+            "docx/golden/tables-default-widths.docx"
+          , docxTest
             "tables with lists in cells"
             def
             "docx/table_with_list_cell.native"
@@ -128,6 +131,16 @@ tests = [ testGroup "inlines"
             def
             "docx/codeblock.native"
             "docx/golden/codeblock.docx"
+          , docxTest
+            "raw OOXML blocks"
+            def
+            "docx/raw-blocks.native"
+            "docx/golden/raw-blocks.docx"
+          , docxTest
+            "raw bookmark markers"
+            def
+            "docx/raw-bookmarks.native"
+            "docx/golden/raw-bookmarks.docx"
           ]
         , testGroup "track changes"
           [ docxTest

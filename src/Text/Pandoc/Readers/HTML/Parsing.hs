@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {- |
    Module      : Text.Pandoc.Readers.HTML.Parsing
-   Copyright   : Copyright (C) 2006-2020 John MacFarlane
+   Copyright   : Copyright (C) 2006-2021 John MacFarlane
    License     : GNU GPL, version 2 or above
 
    Maintainer  : John MacFarlane <jgm@berkeley.edu>
@@ -161,10 +161,12 @@ _ `closes` "html" = False
 "li" `closes` "li" = True
 "th" `closes` t | t `elem` ["th","td"] = True
 "td" `closes` t | t `elem` ["th","td"] = True
-"tr" `closes` t | t `elem` ["th","td","tr"] = True
+"tr" `closes` t | t `elem` ["th","td","tr","colgroup"] = True
 "dd" `closes` t | t `elem` ["dt", "dd"] = True
 "dt" `closes` t | t `elem` ["dt","dd"] = True
 "rt" `closes` t | t `elem` ["rb", "rt", "rtc"] = True
+"col" `closes` "col" = True
+"colgroup" `closes` "col" = True
 "optgroup" `closes` "optgroup" = True
 "optgroup" `closes` "option" = True
 "option" `closes` "option" = True
@@ -193,14 +195,20 @@ t1 `closes` t2 |
 _ `closes` _ = False
 
 toStringAttr :: [(Text, Text)] -> [(Text, Text)]
-toStringAttr = map go
+toStringAttr = foldr go []
   where
-   go (x,y) =
-     case T.stripPrefix "data-" x of
-       Just x' | x' `Set.notMember` (html5Attributes <>
-                                     html4Attributes <> rdfaAttributes)
-         -> (x',y)
-       _ -> (x,y)
+   go :: (Text, Text) -> [(Text, Text)] -> [(Text, Text)]
+   -- treat xml:lang as lang
+   go ("xml:lang",y) ats = go ("lang",y) ats
+   -- prevent duplicate attributes
+   go (x,y) ats
+     | any (\(x',_) -> x == x') ats = ats
+     | otherwise      =
+        case T.stripPrefix "data-" x of
+          Just x' | x' `Set.notMember` (html5Attributes <>
+                                        html4Attributes <> rdfaAttributes)
+            -> go (x',y) ats
+          _ -> (x,y):ats
 
 -- Unlike fromAttrib from tagsoup, this distinguishes
 -- between a missing attribute and an attribute with empty content.

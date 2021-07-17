@@ -33,6 +33,11 @@ Metadata Values
 
         See [`<given-names>`][elem:given-names].
 
+    `name`
+    :   full name of the author; included only as a fallback if
+        `author.surname` is not available. Tagged with
+        [`<string-name>`][elem:string-name].
+
     `email`
     :   the contributor's email address.
 
@@ -44,6 +49,13 @@ Metadata Values
         with which an author is affiliated. Each identifier in this
         list must also occur as the `id` of an affiliation listed in
         the top-level `affiliation` list.
+
+    `equal-contrib`
+    :   boolean attribute used to mark authors who contributed
+        equally to the work. The
+        [`equal-contrib`][attr:equal-contrib] attribute is added
+        to the author's [`<contrib>`] element if this is set to a
+        truthy value.
 
     `cor-id`
     :   identifier linking to the contributor's correspondence
@@ -167,12 +179,13 @@ Metadata Values
     pass these components directly.
 
     The publication date is recorded in the document via the
-    [`<pub-date>`][elem:pub-date] element and its sub-elements. The
-    [`pub-type`][attr:pub-type] attribute is always set to `epub`.
+    [`<pub-date>`] element and its sub-elements. The
+    [`publication-format`][attr:publication-format] attribute is
+    always set to `electronic`.
 
     `iso-8601`
     :   ISO-8601 representation of the publication date. Used as the
-        value of the [`pub-date`][elem:pub-date] element's
+        value of the [`<pub-date>`] element's
         [`iso-8601-date`][attr:iso-8601-date] attribute.
 
         This value is set automatically if pandoc can parse the
@@ -185,6 +198,12 @@ Metadata Values
 
         The values are set automatically if pandoc can parse the
         `date` value as a date.
+
+    `type`
+    :   The type of event marked by this date. The value is set as
+        the [`date-type`][attr:date-type] attribute on the
+        [`<pub-date>`] element and defaults to "pub" if not
+        specified.
 
 `article`
 :   information concerning the article that identifies or describes
@@ -295,12 +314,14 @@ Metadata Values
     `pissn`
     :   ISSN identifier of the publication's print version. Used as
         content of the [`<issn>`][elem:issn] element with the
-        [`pub-type`][attr:pub-type] attribute set to `ppub`.
+        [`publication-format`][attr:publication-format] attribute
+        set to `print`.
 
     `eissn`
     :   ISSN identifier of the publication's electronic version.
         Used as content of the [`<issn>`][elem:issn] element with
-        the [`pub-type`][attr:pub-type] attribute set to `epub`.
+        the [`publication-format`][attr:publication-format]
+        attribute set to `electronic`.
 
     `publisher-name`
     :   name of the publishing entity (person, company, or other).
@@ -340,6 +361,8 @@ Required metadata values:
 
 [Ringgold]: https://ringgold.com/
 [attr:content-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/content-type.html
+[attr:date-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/date-type.html
+[attr:equal-contrib]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/equal-contrib.html
 [attr:fn-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/fn-type.html
 [attr:institution-id-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/institution-id-type.html
 [attr:iso-8601-date]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/iso-8601-date.html
@@ -347,7 +370,7 @@ Required metadata values:
 [attr:kwd-group-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/kwd-group-type.html
 [attr:license-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/license-type.html
 [attr:pub-id-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/pub-id-type.html
-[attr:pub-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/pub-type.html
+[attr:publication-format]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/publication-format.html
 [attr:ref-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/ref-type.html
 [attr:rid]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/rid.html
 [attr:subj-group-type]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/attribute/subj-group-type.html
@@ -372,7 +395,6 @@ Required metadata values:
 [elem:license]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/license.html
 [elem:notes]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/notes.html
 [elem:permissions]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/permissions.html
-[elem:pub-date]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/pub-date.html
 [elem:publisher-loc]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/publisher-loc.html
 [elem:publisher-name]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/publisher-name.html
 [elem:string-name]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/string-name.html
@@ -384,7 +406,9 @@ Required metadata values:
 [`<addr-line>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/addr-line.html
 [`<aff>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/aff.html
 [`<city>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/city.html
+[`<contrib>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/contrib.html
 [`<country>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/country.html
 [`<institution-id>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/institution-id.html
 [`<institution-wrap>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/institution-wrap.html
 [`<institution>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/institution.html
+[`<pub-date>`]: https://jats.nlm.nih.gov/publishing/tag-library/1.2/element/pub-date.html

@@ -2,7 +2,7 @@
 {- |
    Module      : Text.Pandoc.Readers.Docx.Combine
    Copyright   : © 2014-2020 Jesse Rosenthal <jrosenthal@jhu.edu>,
-                   2014-2020 John MacFarlane <jgm@berkeley.edu>,
+                   2014-2021 John MacFarlane <jgm@berkeley.edu>,
                    2020 Nikolay Yakimov <root@livid.pp.ru>
    License     : GNU GPL, version 2 or above
 
@@ -61,7 +61,7 @@ import Data.List
 import Data.Bifunctor
 import Data.Sequence ( ViewL (..), ViewR (..), viewl, viewr, spanr, spanl
                      , (><), (|>) )
-import Text.Pandoc.Builder
+import Text.Pandoc.Builder as B
 
 data Modifier a = Modifier (a -> a)
                 | AttrModifier (Attr -> a -> a) Attr
@@ -116,12 +116,12 @@ ilModifierAndInnards ils = case viewl $ unMany ils of
 
 inlinesL :: Inlines -> (Inlines, Inlines)
 inlinesL ils = case viewl $ unMany ils of
-  (s :< sq) -> (singleton s, Many sq)
+  (s :< sq) -> (B.singleton s, Many sq)
   _         -> (mempty, ils)
 
 inlinesR :: Inlines -> (Inlines, Inlines)
 inlinesR ils = case viewr $ unMany ils of
-  (sq :> s) -> (Many sq, singleton s)
+  (sq :> s) -> (Many sq, B.singleton s)
   _         -> (ils, mempty)
 
 combineInlines :: Inlines -> Inlines -> Inlines
@@ -182,7 +182,7 @@ isAttrModifier _                  = False
 
 smushInlines :: [Inlines] -> Inlines
 smushInlines xs = combineInlines xs' mempty
-  where xs' = foldl combineInlines mempty xs
+  where xs' = foldl' combineInlines mempty xs
 
 smushBlocks :: [Blocks] -> Blocks
-smushBlocks xs = foldl combineBlocks mempty xs
+smushBlocks xs = foldl' combineBlocks mempty xs

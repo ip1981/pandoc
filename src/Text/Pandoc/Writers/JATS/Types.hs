@@ -1,6 +1,6 @@
 {- |
    Module      : Text.Pandoc.Writers.JATS.Types
-   Copyright   : Copyright (C) 2017-2020 John MacFarlane
+   Copyright   : Copyright (C) 2017-2021 John MacFarlane
    License     : GNU GPL, version 2 or above
 
    Maintainer  : John MacFarlane <jgm@berkeley.edu>
@@ -17,11 +17,12 @@ module Text.Pandoc.Writers.JATS.Types
   )
 where
 
+import Citeproc.Types (Reference)
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.State (StateT)
 import Data.Text (Text)
 import Text.DocLayout (Doc)
-import Text.Pandoc.Definition (Block, Inline)
+import Text.Pandoc.Builder (Block, Inline, Inlines)
 import Text.Pandoc.Options (WriterOptions)
 
 -- | JATS tag set variant
@@ -36,10 +37,20 @@ newtype JATSState = JATSState
   { jatsNotes :: [(Int, Doc Text)]
   }
 
+-- | Environment containing all information relevant for rendering.
 data JATSEnv m = JATSEnv
-  { jatsTagSet :: JATSTagSet
+  { jatsTagSet :: JATSTagSet  -- ^ The tag set that's being ouput
+
+  , jatsBlockWriter   :: (Block -> Bool)
+                      -> WriterOptions -> [Block]  -> JATS m (Doc Text)
+    -- ^ Converts a block list to JATS, wrapping top-level blocks into a
+    -- @<p>@ element if the property evaluates to @True@.
+    -- See #7227.
+
   , jatsInlinesWriter :: WriterOptions -> [Inline] -> JATS m (Doc Text)
-  , jatsBlockWriter   :: WriterOptions -> Block    -> JATS m (Doc Text)
+    -- ^ Converts an inline list to JATS.
+
+  , jatsReferences    :: [Reference Inlines] -- ^ List of references
   }
 
 -- | JATS writer type

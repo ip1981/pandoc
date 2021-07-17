@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {- |
    Module      : Text.Pandoc.Readers.Metadata
-   Copyright   : Copyright (C) 2006-2020 John MacFarlane
+   Copyright   : Copyright (C) 2006-2021 John MacFarlane
    License     : GNU GPL, version 2 or above
 
    Maintainer  : John MacFarlane <jgm@berkeley.edu>
@@ -14,6 +14,7 @@ Parse YAML/JSON metadata to 'Pandoc' 'Meta'.
 module Text.Pandoc.Readers.Metadata (
   yamlBsToMeta,
   yamlBsToRefs,
+  yamlMetaBlock,
   yamlMap ) where
 
 import Control.Monad
@@ -30,17 +31,22 @@ import Text.Pandoc.Definition
 import Text.Pandoc.Error
 import Text.Pandoc.Parsing hiding (tableWith)
 import Text.Pandoc.Shared
+import qualified Data.Text.Lazy as TL
+import qualified Text.Pandoc.UTF8 as UTF8
 
-yamlBsToMeta :: PandocMonad m
-             => ParserT Text ParserState m (F MetaValue)
+yamlBsToMeta :: (PandocMonad m, HasLastStrPosition st)
+             => ParserT Sources st m (Future st MetaValue)
              -> BL.ByteString
-             -> ParserT Text ParserState m (F Meta)
+             -> ParserT Sources st m (Future st Meta)
 yamlBsToMeta pMetaValue bstr = do
   case YAML.decodeNode' YAML.failsafeSchemaResolver False False bstr of
        Right (YAML.Doc (YAML.Mapping _ _ o):_)
                 -> fmap Meta <$> yamlMap pMetaValue o
        Right [] -> return . return $ mempty
        Right [YAML.Doc (YAML.Scalar _ YAML.SNull)]
+                -> return . return $ mempty
+       -- the following is what we get from a comment:
+       Right [YAML.Doc (YAML.Scalar _ (YAML.SUnknown _ ""))]
                 -> return . return $ mempty
        Right _  -> Prelude.fail "expected YAML object"
        Left (yamlpos, err')
@@ -63,11 +69,11 @@ lookupYAML t (YAML.Mapping _ _ m) =
 lookupYAML _ _ = Nothing
 
 -- Returns filtered list of references.
-yamlBsToRefs :: PandocMonad m
-             => ParserT Text ParserState m (F MetaValue)
+yamlBsToRefs :: (PandocMonad m, HasLastStrPosition st)
+             => ParserT Sources st m (Future st MetaValue)
              -> (Text -> Bool) -- ^ Filter for id
              -> BL.ByteString
-             -> ParserT Text ParserState m (F [MetaValue])
+             -> ParserT Sources st m (Future st [MetaValue])
 yamlBsToRefs pMetaValue idpred bstr =
   case YAML.decodeNode' YAML.failsafeSchemaResolver False False bstr of
        Right (YAML.Doc o@YAML.Mapping{}:_)
@@ -95,8 +101,12 @@ yamlBsToRefs pMetaValue idpred bstr =
        Right [YAML.Doc (YAML.Scalar _ YAML.SNull)]
                 -> return . return $ mempty
        Right _  -> Prelude.fail "expecting YAML object"
-       Left (_pos, err')
-                -> Prelude.fail err'
+       Left (yamlpos, err')
+                -> do pos <- getPosition
+                      setPosition $ incSourceLine
+                            (setSourceColumn pos (YE.posColumn yamlpos))
+                            (YE.posLine yamlpos - 1)
+                      Prelude.fail err'
 
 
 nodeToKey :: YAML.Node YE.Pos -> Maybe Text
@@ -104,10 +114,10 @@ nodeToKey (YAML.Scalar _ (YAML.SStr t))       = Just t
 nodeToKey (YAML.Scalar _ (YAML.SUnknown _ t)) = Just t
 nodeToKey _                                   = Nothing
 
-normalizeMetaValue :: PandocMonad m
-                   => ParserT Text ParserState m (F MetaValue)
+normalizeMetaValue :: (PandocMonad m, HasLastStrPosition st)
+                   => ParserT Sources st m (Future st MetaValue)
                    -> Text
-                   -> ParserT Text ParserState m (F MetaValue)
+                   -> ParserT Sources st m (Future st MetaValue)
 normalizeMetaValue pMetaValue x =
    -- Note: a standard quoted or unquoted YAML value will
    -- not end in a newline, but a "block" set off with
@@ -129,10 +139,10 @@ checkBoolean t
   | t == T.pack "false" || t == T.pack "False" || t == T.pack "FALSE" = Just False
   | otherwise = Nothing
 
-yamlToMetaValue :: PandocMonad m
-                => ParserT Text ParserState m (F MetaValue)
+yamlToMetaValue :: (PandocMonad m, HasLastStrPosition st)
+                => ParserT Sources st m (Future st MetaValue)
                 -> YAML.Node YE.Pos
-                -> ParserT Text ParserState m (F MetaValue)
+                -> ParserT Sources st m (Future st MetaValue)
 yamlToMetaValue pMetaValue (YAML.Scalar _ x) =
   case x of
        YAML.SStr t       -> normalizeMetaValue pMetaValue t
@@ -152,10 +162,10 @@ yamlToMetaValue pMetaValue (YAML.Mapping _ _ o) =
   fmap MetaMap <$> yamlMap pMetaValue o
 yamlToMetaValue _ _ = return $ return $ MetaString ""
 
-yamlMap :: PandocMonad m
-        => ParserT Text ParserState m (F MetaValue)
+yamlMap :: (PandocMonad m, HasLastStrPosition st)
+        => ParserT Sources st m (Future st MetaValue)
         -> M.Map (YAML.Node YE.Pos) (YAML.Node YE.Pos)
-        -> ParserT Text ParserState m (F (M.Map Text MetaValue))
+        -> ParserT Sources st m (Future st (M.Map Text MetaValue))
 yamlMap pMetaValue o = do
     kvs <- forM (M.toList o) $ \(key, v) -> do
              k <- maybe (throwError $ PandocParseError
@@ -171,3 +181,20 @@ yamlMap pMetaValue o = do
       return $ do
         v' <- fv
         return (k, v')
+
+-- | Parse a YAML metadata block using the supplied 'MetaValue' parser.
+yamlMetaBlock :: (HasLastStrPosition st, PandocMonad m)
+              => ParserT Sources st m (Future st MetaValue)
+              -> ParserT Sources st m (Future st Meta)
+yamlMetaBlock parser = try $ do
+  string "---"
+  blankline
+  notFollowedBy blankline  -- if --- is followed by a blank it's an HRULE
+  rawYamlLines <- manyTill anyLine stopLine
+  -- by including --- and ..., we allow yaml blocks with just comments:
+  let rawYaml = T.unlines ("---" : (rawYamlLines ++ ["..."]))
+  optional blanklines
+  yamlBsToMeta parser $ UTF8.fromTextLazy $ TL.fromStrict rawYaml
+
+stopLine :: Monad m => ParserT Sources st m ()
+stopLine = try $ (string "---" <|> string "...") >> blankline >> return ()
